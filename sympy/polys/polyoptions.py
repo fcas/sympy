@@ -4,7 +4,8 @@ from __future__ import annotations
 
 __all__ = ["Options"]
 
-from sympy.core import Basic, sympify
+from sympy.core.basic import Basic
+from sympy.core.sympify import sympify
 from sympy.polys.polyerrors import GeneratorsError, OptionError, FlagError
 from sympy.utilities import numbered_symbols, topological_sort, public
 from sympy.utilities.iterables import has_dups, is_sequence
@@ -12,6 +13,10 @@ from sympy.utilities.iterables import has_dups, is_sequence
 import sympy.polys
 
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sympy.core.expr import Expr
 
 class Option:
     """Base class for all kinds of options. """
@@ -122,6 +127,9 @@ class Options(dict):
 
     __order__ = None
     __options__: dict[str, type[Option]] = {}
+
+    gens: tuple[Expr, ...]
+    domain: sympy.polys.domains.Domain
 
     def __init__(self, gens, args, flags=None, strict=False):
         dict.__init__(self)
@@ -407,7 +415,7 @@ class Domain(Option, metaclass=OptionType):
     _re_algebraic = re.compile(r"^(Q|QQ)\<(.+)\>$")
 
     @classmethod
-    def preprocess(cls, domain):
+    def preprocess(cls, domain) -> sympy.polys.domains.Domain:
         if isinstance(domain, sympy.polys.domains.Domain):
             return domain
         elif hasattr(domain, 'to_domain'):

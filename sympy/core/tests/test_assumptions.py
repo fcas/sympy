@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import pytest
+
 from sympy.core.mod import Mod
 from sympy.core.numbers import (I, oo, pi)
 from sympy.functions.combinatorial.factorials import factorial
@@ -1288,7 +1292,7 @@ def test_failing_assumptions():
     x = Symbol('x', positive=True)
     y = Symbol('y')
     assert failing_assumptions(6*x + y, **x.assumptions0) == \
-    {'real': None, 'imaginary': None, 'complex': None, 'hermitian': None,
+    {'real': None, 'imaginary': None, 'complex': None,
     'positive': None, 'nonpositive': None, 'nonnegative': None, 'nonzero': None,
     'negative': None, 'zero': None, 'extended_real': None, 'finite': None,
     'infinite': None, 'extended_negative': None, 'extended_nonnegative': None,
@@ -1298,8 +1302,7 @@ def test_failing_assumptions():
 
 def test_common_assumptions():
     assert common_assumptions([0, 1, 2]
-        ) == {'algebraic': True, 'irrational': False, 'hermitian':
-        True, 'extended_real': True, 'real': True, 'extended_negative':
+        ) == {'algebraic': True, 'irrational': False, 'extended_real': True, 'real': True, 'extended_negative':
         False, 'extended_nonnegative': True, 'integer': True,
         'rational': True, 'imaginary': False, 'complex': True,
         'commutative': True,'noninteger': False, 'composite': False,
@@ -1320,6 +1323,9 @@ def test_pre_generated_assumption_rules_are_valid():
     assert pre_generated_assumptions._to_python() == generated_assumptions._to_python(), "pre-generated assumptions are invalid, see sympy.core.assumptions._generate_assumption_rules"
 
 
+@pytest.mark.thread_unsafe(
+    reason="resets and consumes process-global RNG state"
+)
 def test_ask_shuffle():
     grp = PermutationGroup(Permutation(1, 0, 2), Permutation(2, 1, 3))
 

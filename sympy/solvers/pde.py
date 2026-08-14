@@ -32,6 +32,7 @@ more information on each (run help(pde)):
     variable coefficients.
 
 """
+from __future__ import annotations
 from functools import reduce
 
 from itertools import combinations_with_replacement
@@ -201,12 +202,7 @@ def _helper_simplify(eq, hint, func, order, match, solvefun):
     equations. This minimizes the computation in
     calling _desolve multiple times.
     """
-
-    if hint.endswith("_Integral"):
-        solvefunc = globals()[
-            "pde_" + hint[:-len("_Integral")]]
-    else:
-        solvefunc = globals()["pde_" + hint]
+    solvefunc = globals()["pde_" + hint.removesuffix("_Integral")]
     return _handle_Integral(solvefunc(eq, func, order,
         match, solvefun), func, order, hint)
 
@@ -577,39 +573,22 @@ def pde_1st_linear_constant_coeff(eq, func, order, match, solvefun):
         a*--(f(x, y)) + b*--(f(x, y)) + c*f(x, y) - G(x, y)
           dx              dy
         >>> pprint(pdsolve(genform, hint='1st_linear_constant_coeff_Integral'))
-                  //          a*x + b*y                                             \  >
-                  ||              /                                                 |  >
-                  ||             |                                                  |  >
-                  ||             |                                      c*xi        |  >
-                  ||             |                                     -------      |  >
-                  ||             |                                      2    2      |  >
-                  ||             |      /a*xi + b*eta  -a*eta + b*xi\  a  + b       |  >
-                  ||             |     G|------------, -------------|*e        d(xi)|  >
-                  ||             |      |   2    2         2    2   |               |  >
-                  ||             |      \  a  + b         a  + b    /               |  >
-                  ||             |                                                  |  >
-                  ||            /                                                   |  >
-                  ||                                                                |  >
-        f(x, y) = ||F(eta) + -------------------------------------------------------|* >
-                  ||                                  2    2                        |  >
-                  \\                                 a  + b                         /  >
-        <BLANKLINE>
-        >         \|
-        >         ||
-        >         ||
-        >         ||
-        >         ||
-        >         ||
-        >         ||
-        >         ||
-        >         ||
-        >  -c*xi  ||
-        >  -------||
-        >   2    2||
-        >  a  + b ||
-        > e       ||
-        >         ||
-        >         /|eta=-a*y + b*x, xi=a*x + b*y
+                  //          a*x + b*y                                             \         \|
+                  ||              /                                                 |         ||
+                  ||             |                                                  |         ||
+                  ||             |                                      c*xi        |         ||
+                  ||             |                                     -------      |         ||
+                  ||             |                                      2    2      |         ||
+                  ||             |      /a*xi + b*eta  -a*eta + b*xi\  a  + b       |         ||
+                  ||             |     G|------------, -------------|*e        d(xi)|         ||
+                  ||             |      |   2    2         2    2   |               |         ||
+                  ||             |      \  a  + b         a  + b    /               |  -c*xi  ||
+                  ||             |                                                  |  -------||
+                  ||            /                                                   |   2    2||
+                  ||                                                                |  a  + b ||
+        f(x, y) = ||F(eta) + -------------------------------------------------------|*e       ||
+                  ||                                  2    2                        |         ||
+                  \\                                 a  + b                         /         /|eta=-a*y + b*x, xi=a*x + b*y
 
     Examples
     ========
@@ -710,7 +689,7 @@ def pde_1st_linear_variable_coeff(eq, func, order, match, solvefun):
     """
     from sympy.solvers.ode import dsolve
 
-    xi, eta = symbols("xi eta")
+    eta = symbols("eta")
     f = func.func
     x = func.args[0]
     y = func.args[1]
@@ -722,7 +701,7 @@ def pde_1st_linear_variable_coeff(eq, func, order, match, solvefun):
 
     if not d:
          # To deal with cases like b*ux = e or c*uy = e
-         if not (b and c):
+        if not (b and c):
             if c:
                 try:
                     tsol = integrate(e/c, y)

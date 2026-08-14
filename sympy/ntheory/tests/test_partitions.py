@@ -1,3 +1,4 @@
+from __future__ import annotations
 from sympy.ntheory.partitions_ import npartitions, _partition_rec, _partition
 
 
@@ -18,6 +19,7 @@ def test__partition():
     assert _partition(2000) == 4720819175619413888601432406799959512200344166
     assert _partition(10000) % 10**10 == 6916435144
     assert _partition(100000) % 10**10 == 9421098519
+    assert _partition(10000000) % 10**10 == 7677288980
 
 
 def test_deprecated_ntheory_symbolic_functions():

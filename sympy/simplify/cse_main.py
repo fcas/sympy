@@ -1,5 +1,6 @@
 """ Tools for doing common subexpression elimination.
 """
+from __future__ import annotations
 from collections import defaultdict
 
 from sympy.core import Basic, Mul, Add, Pow, sympify
@@ -853,9 +854,8 @@ def cse(exprs, symbols=None, optimizations=None, postprocess=None,
 
     # Postprocess the expressions to return the expressions to canonical form.
     exprs = copy
-    for i, (sym, subtree) in enumerate(replacements):
-        subtree = postprocess_for_cse(subtree, optimizations)
-        replacements[i] = (sym, subtree)
+    replacements = [(sym, postprocess_for_cse(subtree, optimizations))
+                    for sym, subtree in replacements]
     reduced_exprs = [postprocess_for_cse(e, optimizations)
                      for e in reduced_exprs]
 

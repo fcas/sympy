@@ -1,3 +1,4 @@
+from __future__ import annotations
 from sympy.plotting.series import BaseSeries, GenericDataSeries
 from sympy.utilities.exceptions import sympy_deprecation_warning
 from sympy.utilities.iterables import is_sequence
@@ -51,7 +52,7 @@ class Plot:
     which implements the necessary functionalities in order to use SymPy
     plotting functions.
 
-    For interactive work the function :func:`plot()` is better suited.
+    For interactive work the function :func:`plot` is better suited.
 
     This class permits the plotting of SymPy expressions using numerous
     backends (:external:mod:`matplotlib`, textplot, the old pyglet module for SymPy, Google

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from sympy.concrete.summations import Sum
 from sympy.core.numbers import Rational
 from sympy.core.singleton import S
@@ -178,3 +179,6 @@ def test_doit():
     assert Wigner9j(
         2, 1, 1, Rational(3, 2), S.Half, 1, S.Half, S.Half, 0).doit() == sqrt(2)/12
     assert CG(S.Half, S.Half, S.Half, Rational(-1, 2), 1, 0).doit() == sqrt(2)/2
+    # J minus M is not integer
+    assert Wigner3j(1, -1, S.Half, S.Half, 1, S.Half).doit() == 0
+    assert CG(4, -1, S.Half, S.Half, 4, Rational(-1, 2)).doit() == 0

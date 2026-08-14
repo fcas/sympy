@@ -1,3 +1,4 @@
+from __future__ import annotations
 import string
 
 from sympy.concrete.products import Product
@@ -20,7 +21,7 @@ from sympy.functions import (
     primenu, primeomega, totient, reduced_totient, primepi,
     motzkin, binomial, gamma, sqrt, cbrt, hyper, log, digamma,
     trigamma, polygamma, factorial, sin, cos, cot, polylog, zeta, dirichlet_eta)
-from sympy.functions.combinatorial.numbers import _nT
+from sympy.functions.combinatorial.numbers import _nT, nP
 from sympy.ntheory.factor_ import factorint
 
 from sympy.core.expr import unchanged
@@ -426,11 +427,14 @@ def test_euler_polynomials():
     A = Float('-0.46237208575048694923364757452876131e8')  # from Maple
     B = euler(19, S.Pi).evalf(32)
     assert abs((A - B)/A) < 1e-31
+    z = Float(0.1) + Float(0.2)*I
+    expected = Float(-3126.54721663773 ) + Float(565.736261497056) * I
+    assert abs(euler(13, z) - expected) < 1e-10
 
 
 def test_euler_polynomial_rewrite():
     m = Symbol('m')
-    A = euler(m, x).rewrite('Sum');
+    A = euler(m, x).rewrite('Sum')
     assert A.subs({m:3, x:5}).doit() == euler(3, 5)
 
 
@@ -574,6 +578,12 @@ def test_partition():
     assert partition(x).subs(x, 7) == 15
     assert partition(y).subs(y, 8) == 22
     raises(TypeError, lambda: partition(Rational(5, 4)))
+    assert partition(9, evaluate=False) % 5 == 0
+    assert partition(5*m + 4) % 5 == 0
+    assert partition(47, evaluate=False) % 7 == 0
+    assert partition(7*m + 5) % 7 == 0
+    assert partition(50, evaluate=False) % 11 == 0
+    assert partition(11*m + 6) % 11 == 0
 
 
 def test_divisor_sigma():
@@ -959,15 +969,15 @@ def test_primepi():
 
 
 def test__nT():
-       assert [_nT(i, j) for i in range(5) for j in range(i + 2)] == [
-    1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 2, 1, 1, 0]
-       check = [_nT(10, i) for i in range(11)]
-       assert check == [0, 1, 5, 8, 9, 7, 5, 3, 2, 1, 1]
-       assert all(type(i) is int for i in check)
-       assert _nT(10, 5) == 7
-       assert _nT(100, 98) == 2
-       assert _nT(100, 100) == 1
-       assert _nT(10, 3) == 8
+    assert [_nT(i, j) for i in range(5) for j in range(i + 2)] == [
+            1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 2, 1, 1, 0]
+    check = [_nT(10, i) for i in range(11)]
+    assert check == [0, 1, 5, 8, 9, 7, 5, 3, 2, 1, 1]
+    assert all(type(i) is int for i in check)
+    assert _nT(10, 5) == 7
+    assert _nT(100, 98) == 2
+    assert _nT(100, 100) == 1
+    assert _nT(10, 3) == 8
 
 
 def test_nC_nP_nT():
@@ -1239,3 +1249,7 @@ def test_deprecated_ntheory_symbolic_functions():
         assert carmichael.find_carmichael_numbers_in_range(10, 20) == []
     with warns_deprecated_sympy():
         assert carmichael.find_first_n_carmichaels(1)
+
+
+def test_issue_29117():
+    raises(ValueError, lambda: nP(3, -1))

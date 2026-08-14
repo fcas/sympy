@@ -12,14 +12,14 @@
 [![SymPy Banner](https://github.com/sympy/sympy/raw/master/banner.svg)](https://sympy.org/)
 
 
-See the [AUTHORS](AUTHORS) file for the list of authors.
+See the [AUTHORS](https://github.com/sympy/sympy/blob/master/AUTHORS) file for the list of authors.
 
 And many more people helped on the SymPy mailing list, reported bugs,
 helped organize SymPy's participation in the Google Summer of Code, the
 Google Highly Open Participation Contest, Google Code-In, wrote and
 blogged about SymPy...
 
-License: New BSD License (see the [LICENSE](LICENSE) file for details) covers all
+License: New BSD License (see the [LICENSE](https://github.com/sympy/sympy/blob/master/LICENSE) file for details) covers all
 files in the sympy repository unless stated otherwise.
 
 Our mailing list is at
@@ -88,12 +88,6 @@ if SymPy is installed.
 
 ## Installation
 
-SymPy has a hard dependency on the [mpmath](http://mpmath.org/) library
-(version \>= 0.19). You should install it first, please refer to the
-mpmath installation guide:
-
-<https://github.com/fredrik-johansson/mpmath#1-download--installation>
-
 To install SymPy using PyPI, run the following command:
 
     $ pip install sympy
@@ -115,7 +109,7 @@ See <https://docs.sympy.org/dev/install.html> for more information.
 ## Contributing
 
 We welcome contributions from anyone, even if you are new to open
-source. Please read our [Introduction to Contributing](https://docs.sympy.org/dev/contributing/introduction-to-contributing.html)
+source. Please read our [Contributor Guide](https://docs.sympy.org/dev/contributing/index.html)
 page and the [SymPy Documentation Style Guide](https://docs.sympy.org/dev/documentation-style-guide.html). If you
 are new and looking for some way to contribute, a good place to start is
 to look at the issues tagged [Easy to Fix](https://github.com/sympy/sympy/issues?q=is%3Aopen+is%3Aissue+label%3A%22Easy+to+Fix%22).
@@ -217,10 +211,7 @@ place. Ondřej Čertík is still active in the community but is too busy
 with work and family to play a lead development role.
 
 Since then, a lot more people have joined the development and some
-people have also left. You can see the full list in doc/src/aboutus.rst,
-or online at:
-
-<https://docs.sympy.org/dev/aboutus.html#sympy-development-team>
+people have also left. You can see the full list in [AUTHORS](https://github.com/sympy/sympy/blob/master/AUTHORS).
 
 The git history goes back to 2007 when development moved from svn to hg.
 To see the history before that point, look at

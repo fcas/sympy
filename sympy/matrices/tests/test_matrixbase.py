@@ -1,3 +1,4 @@
+from __future__ import annotations
 import concurrent.futures
 import random
 from collections.abc import Hashable
@@ -8,11 +9,11 @@ from sympy import (
     ImmutableSparseMatrix, Integer, KroneckerDelta, MatPow, Matrix,
     MatrixSymbol, Max, Min, MutableDenseMatrix, MutableSparseMatrix, Poly, Pow,
     PurePoly, Q, Quaternion, Rational, RootOf, S, SparseMatrix, Symbol, Tuple,
-    Wild, banded, casoratian, cos, diag, diff, exp, expand, eye, hessian,
-    integrate, log, matrix_multiply_elementwise, nan, ones, oo, pi, randMatrix,
+    Wild, banded, casoratian, cos, diag, diff, exp, expand, eye, floor, hessian,
+    integrate, log, matrix_multiply_elementwise, nan, ones, oo, zoo, pi, randMatrix,
     rot_axis1, rot_axis2, rot_axis3, rot_ccw_axis1, rot_ccw_axis2,
     rot_ccw_axis3, signsimp, simplify, sin, sqrt, sstr, symbols, sympify, tan,
-    trigsimp, wronskian, zeros)
+    trigsimp, wronskian, zeros, cancel)
 from sympy.abc import a, b, c, d, t, x, y, z
 from sympy.core.kind import NumberKind, UndefinedKind
 from sympy.matrices.determinant import _find_reasonable_pivot_naive
@@ -234,8 +235,8 @@ def test_is_anti_symmetric():
     assert Matrix(2, 1, [1, 2]).is_anti_symmetric() is False
     m = Matrix(3, 3, [0, x**2 + 2*x + 1, y, -(x + 1)**2, 0, x*y, -y, -x*y, 0])
     assert m.is_anti_symmetric() is True
-    assert m.is_anti_symmetric(simplify=False) is False
-    assert m.is_anti_symmetric(simplify=lambda x: x) is False
+    assert m.is_anti_symmetric(simplify=False) is None
+    assert m.is_anti_symmetric(simplify=lambda x: x) is None
 
     m = Matrix(3, 3, [x.expand() for x in m])
     assert m.is_anti_symmetric(simplify=False) is True
@@ -663,13 +664,16 @@ def test_diagonal():
     s = SparseMatrix(3, 3, {(1, 1): 1})
     assert type(s.diagonal()) == type(s)
     assert type(m) != type(s)
-    raises(ValueError, lambda: m.diagonal(3))
-    raises(ValueError, lambda: m.diagonal(-3))
+    assert m.diagonal(3)  == Matrix(1, 0, [])
+    assert m.diagonal(-3) == Matrix(1, 0, [])
     raises(ValueError, lambda: m.diagonal(pi))
     M = ones(2, 3)
     assert banded({i: list(M.diagonal(i))
         for i in range(1-M.rows, M.cols)}) == M
 
+    #https://github.com/sympy/sympy/issues/28067
+    x = Matrix([])
+    assert x.diagonal() == Matrix(1, 0, [])
 
 def test_jordan_block():
     assert Matrix.jordan_block(3, 2) == Matrix.jordan_block(3, eigenvalue=2) \
@@ -999,11 +1003,32 @@ def test_multiplication():
     assert c[1, 0] == 3*5
     assert c[1, 1] == 0
 
+    c = Matrix([oo])
+    assert c * 0 == Matrix([nan])
+    assert 0 * c == Matrix([nan])
+
+    c = Matrix([[oo, 0], [5, oo]])
+    assert c * 0 == Matrix([[nan, 0], [0, nan]])
+    assert 0 * c == Matrix([[nan, 0], [0, nan]])
+
     M = Matrix([[oo, 0], [0, oo]])
     assert M ** 2 == M
 
     M = Matrix([[oo, oo], [0, 0]])
     assert M ** 2 == Matrix([[nan, nan], [nan, nan]])
+
+    M = Matrix([[0]])
+    assert M * oo == Matrix([[nan]])
+    assert oo * M == Matrix([[nan]])
+
+    M = Matrix([[5, 0], [0, oo]])
+    assert M * zoo == Matrix([[zoo, nan], [nan, zoo]])
+
+    M = Matrix([0, 1, 2])
+    assert M * 3 == Matrix([0, 3, 6])
+
+    M = Matrix([0, 1, zoo])
+    assert M/0 == Matrix([nan, zoo, zoo])
 
     # https://github.com/sympy/sympy/issues/22353
     A = Matrix(ones(3, 1))
@@ -1055,10 +1080,6 @@ def test_power():
     A = Matrix([[2]])
     assert A**10 == Matrix([[2**10]]) == A._matrix_pow_by_jordan_blocks(S(10)) == \
         A._eval_pow_by_recursion(10)
-
-    # testing a matrix that cannot be jordan blocked issue 11766
-    m = Matrix([[3, 0, 0, 0, -3], [0, -3, -3, 0, 3], [0, 3, 0, 3, 0], [0, 0, 3, 0, 3], [3, 0, 0, 3, 0]])
-    raises(MatrixError, lambda: m._matrix_pow_by_jordan_blocks(S(10)))
 
     # test issue 11964
     raises(MatrixError, lambda: Matrix([[1, 1], [3, 3]])._matrix_pow_by_jordan_blocks(S(-10)))
@@ -1506,7 +1527,10 @@ def test_creation():
     with raises(IndexError):
         Matrix((1, 2))[3] = 5
 
-    assert Matrix() == Matrix([]) == Matrix([[]]) == Matrix(0, 0, [])
+    assert Matrix() == Matrix([]) == Matrix(0, 0, [])
+    assert Matrix([[]]) == Matrix(1, 0, [])
+    assert Matrix([[], []]) == Matrix(2, 0, [])
+
     # anything used to be allowed in a matrix
     with warns_deprecated_sympy():
         assert Matrix([[[1], (2,)]]).tolist() == [[[1], (2,)]]
@@ -1765,6 +1789,51 @@ def test_inverse():
     assert all(type(m.inv(s)) is cls for s in 'GE ADJ LU CH LDL QR'.split())
 
 
+def test_inverse_symbolic_float_issue_26821():
+    Tau, Tau_syn_in, Tau_syn_ex, C_m, Tau_syn_gap = symbols("Tau Tau_syn_in Tau_syn_ex C_m Tau_syn_gap")
+    __h = symbols("__h")
+
+    M = Matrix([
+        [0,0,0,0,0,(1.0*Tau*__h-1.0*Tau_syn_in*__h)/(2.0*Tau-1.0*Tau_syn_in),-1.0*Tau*Tau_syn_in/(2.0*Tau-1.0*Tau_syn_in)],
+        [0,0,0,0,0,(-1.0*Tau*__h+1.0*Tau_syn_in*__h)/(2.0*Tau*Tau_syn_in-1.0*Tau_syn_in**2),1.0],
+        [0,(1.0*Tau*__h-1.0*Tau_syn_ex*__h)/(2.0*Tau-1.0*Tau_syn_ex),-1.0*Tau*Tau_syn_ex/(2.0*Tau-1.0*Tau_syn_ex),0,0,0,0],
+        [0,(-1.0*Tau*__h+1.0*Tau_syn_ex*__h)/(2.0*Tau*Tau_syn_ex-1.0*Tau_syn_ex**2),1.0,0,0,0,0],
+        [0,0,0,(1.0*Tau*__h-1.0*Tau_syn_gap*__h)/(2.0*Tau-1.0*Tau_syn_gap),-1.0*Tau*Tau_syn_gap/(2.0*Tau-1.0*Tau_syn_gap),0,0],
+        [0,0,0,(-1.0*Tau*__h+1.0*Tau_syn_gap*__h)/(2.0*Tau*Tau_syn_gap-1.0*Tau_syn_gap**2),1.0,0,0],
+        [1.0,-1.0*Tau*Tau_syn_ex*__h/(2.0*C_m*Tau-1.0*C_m*Tau_syn_ex),0,-1.0*Tau*Tau_syn_gap*__h/(2.0*C_m*Tau-1.0*C_m*Tau_syn_gap),0,-1.0*Tau*Tau_syn_in*__h/(2.0*C_m*Tau-1.0*C_m*Tau_syn_in),0]
+    ])
+
+    Mi = M.inv()
+
+    assert (M*Mi - eye(7)).applyfunc(cancel) == zeros(7)
+
+    # https://github.com/sympy/sympy/issues/26821
+    # Previously very large floats were in the result.
+    assert max(abs(f) for f in Mi.atoms(Float)) < 1e3
+
+
+@slow
+def test_matrix_exponential_issue_26821():
+    # The symbol names matter in the original bug...
+    a, b, c, d, e = symbols("Tau, Tau_syn_in, Tau_syn_ex, C_m, Tau_syn_gap")
+    t = symbols("__h")
+    M = Matrix([
+        [      0,  1.0,       0,    0,       0,    0,    0],
+        [-1/b**2, -2/b,       0,    0,       0,    0,    0],
+        [      0,    0,       0,  1.0,       0,    0,    0],
+        [      0,    0, -1/c**2, -2/c,       0,    0,    0],
+        [      0,    0,       0,    0,       0,    1,    0],
+        [      0,    0,       0,    0, -1/e**2, -2/e,    0],
+        [    1/d,    0,     1/d,    0,     1/d,    0, -1/a]
+    ])
+
+    Me = (t*M).exp()
+    assert (Me.diff(t) - M*Me).applyfunc(cancel) == zeros(7)
+    # https://github.com/sympy/sympy/issues/26821
+    # Previously very large floats were in the result.
+    assert max(abs(f) for f in Me.atoms(Float)) < 1e3
+
+
 def test_jacobian_hessian():
     L = Matrix(1, 2, [x**2*y, 2*y**2 + x*y])
     syms = [x, y]
@@ -1974,7 +2043,7 @@ def test_issue_3950():
     a = Matrix([1, 2, 3])
     b = Matrix([2, 2, 3])
     assert not (m in [])
-    assert not (m in [1])
+    assert not (m == 1)
     assert m != 1
     assert m == a
     assert m != b
@@ -2371,7 +2440,7 @@ def test_jordan_form():
 
     # complexity: two of eigenvalues are zero
     m = Matrix(3, 3, [4, -5, 2, 5, -7, 3, 6, -9, 4])
-    Jmust = Matrix(3, 3, [0, 1, 0, 0, 0, 0, 0, 0, 1])
+    Jmust = Matrix(3, 3, [1, 0, 0, 0, 0, 1, 0, 0, 0])
     P, J = m.jordan_form()
     assert Jmust == J
 
@@ -2396,7 +2465,7 @@ def test_jordan_form():
 
     m = Matrix(4, 4, [5, 4, 2, 1, 0, 1, -1, -1, -1, -1, 3, 0, 1, 1, -1, 2])
     assert not m.is_diagonalizable()
-    Jmust = Matrix(4, 4, [1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 4, 1, 0, 0, 0, 4])
+    Jmust = Matrix(4, 4, [2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 1, 0, 0, 0, 4])
     P, J = m.jordan_form()
     assert Jmust == J
 
@@ -2414,8 +2483,8 @@ def test_jordan_form_complex_issue_9274():
                 [-4,  2,  0,  1],
                 [ 0,  0,  2,  4],
                 [ 0,  0, -4,  2]])
-    p = 2 - 4*I;
-    q = 2 + 4*I;
+    p = 2 - 4*I
+    q = 2 + 4*I
     Jmust1 = Matrix([[p, 1, 0, 0],
                      [0, p, 0, 0],
                      [0, 0, q, 1],
@@ -2455,10 +2524,11 @@ def test_jordan_form_issue_15858():
         [0, 0, 2, 1]])
     (P, J) = A.jordan_form()
     assert P.expand() == Matrix([
-        [    -I,          -I/2,      I,           I/2],
-        [-1 + I,             0, -1 - I,             0],
-        [     0, -S(1)/2 - I/2,      0, -S(1)/2 + I/2],
-        [     0,             1,      0,             1]])
+        [   -8,      -4,     -8,      -4],
+        [8 + 8*I,      0, 8 - 8*I,      0],
+        [    0, -4 + 4*I,     0, -4 - 4*I],
+        [    0,    -8*I,     0,     8*I]
+    ])
     assert J == Matrix([
         [-I, 1, 0, 0],
         [0, -I, 0, 0],
@@ -2623,9 +2693,7 @@ def test_errors():
     raises(ShapeError, lambda: Matrix([[1, 2], [3, 4]]).normalized())
     raises(ValueError, lambda: Matrix([1, 2]).inv(method='not a method'))
     raises(NonSquareMatrixError, lambda: Matrix([1, 2]).inverse_GE())
-    raises(ValueError, lambda: Matrix([[1, 2], [1, 2]]).inverse_GE())
     raises(NonSquareMatrixError, lambda: Matrix([1, 2]).inverse_ADJ())
-    raises(ValueError, lambda: Matrix([[1, 2], [1, 2]]).inverse_ADJ())
     raises(NonSquareMatrixError, lambda: Matrix([1, 2]).inverse_LU())
     raises(NonSquareMatrixError, lambda: Matrix([1, 2]).is_nilpotent())
     raises(NonSquareMatrixError, lambda: Matrix([1, 2]).det())
@@ -2983,10 +3051,10 @@ def test_is_zero():
     assert Matrix([[0, 0], [0, 0]]).is_zero_matrix
     assert zeros(3, 4).is_zero_matrix
     assert not eye(3).is_zero_matrix
-    assert Matrix([[x, 0], [0, 0]]).is_zero_matrix == None
-    assert SparseMatrix([[x, 0], [0, 0]]).is_zero_matrix == None
-    assert ImmutableMatrix([[x, 0], [0, 0]]).is_zero_matrix == None
-    assert ImmutableSparseMatrix([[x, 0], [0, 0]]).is_zero_matrix == None
+    assert Matrix([[x, 0], [0, 0]]).is_zero_matrix is None
+    assert SparseMatrix([[x, 0], [0, 0]]).is_zero_matrix is None
+    assert ImmutableMatrix([[x, 0], [0, 0]]).is_zero_matrix is None
+    assert ImmutableSparseMatrix([[x, 0], [0, 0]]).is_zero_matrix is None
     assert Matrix([[x, 1], [0, 0]]).is_zero_matrix == False
     a = Symbol('a', nonzero=True)
     assert Matrix([[a, 0], [0, 0]]).is_zero_matrix == False
@@ -3126,9 +3194,6 @@ def test_invertible_check():
     # matrix will be returned even though m is not invertible
     assert m.rref()[0] != eye(3)
     assert m.rref(simplify=signsimp)[0] != eye(3)
-    raises(ValueError, lambda: m.inv(method="ADJ"))
-    raises(ValueError, lambda: m.inv(method="GE"))
-    raises(ValueError, lambda: m.inv(method="LU"))
 
 
 def test_issue_3959():
@@ -3200,12 +3265,12 @@ def test_anti_symmetric():
     assert Matrix([1, 2]).is_anti_symmetric() is False
     m = Matrix(3, 3, [0, x**2 + 2*x + 1, y, -(x + 1)**2, 0, x*y, -y, -x*y, 0])
     assert m.is_anti_symmetric() is True
-    assert m.is_anti_symmetric(simplify=False) is False
-    assert m.is_anti_symmetric(simplify=lambda x: x) is False
+    assert m.is_anti_symmetric(simplify=False) is None
+    assert m.is_anti_symmetric(simplify=lambda x: x) is None
 
     # tweak to fail
     m[2, 1] = -m[2, 1]
-    assert m.is_anti_symmetric() is False
+    assert m.is_anti_symmetric() is None
     # untweak
     m[2, 1] = -m[2, 1]
 
@@ -3412,7 +3477,7 @@ def test_from_ndarray():
         lambda: Matrix(array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])))
     assert Matrix([array([1, 2]), array([3, 4])]) == Matrix([[1, 2], [3, 4]])
     assert Matrix([array([1, 2]), [3, 4]]) == Matrix([[1, 2], [3, 4]])
-    assert Matrix([array([]), array([])]) == Matrix([])
+    assert Matrix([array([]), array([])]) == Matrix(2, 0, []) != Matrix([])
 
 
 def test_17522_numpy():
@@ -3447,11 +3512,16 @@ def test_17522_mpmath():
 def test_17522_scipy():
     from sympy.matrices.common import _matrixify
     try:
-        from scipy.sparse import csr_matrix
+        from scipy.sparse import csr_array, csr_matrix
     except ImportError:
-        skip('SciPy must be available to test indexing matrixified SciPy sparse matrices')
+        skip('SciPy must be available to test indexing matrixified SciPy sparse arrays and matrices')
 
-    m = _matrixify(csr_matrix([[1, 2], [3, 4]]))
+    m = _matrixify(csr_array([[1, 2], [3, 4]]))
+    assert m[3] == 4
+    assert list(m) == [1, 2, 3, 4]
+
+    with ignore_warnings(DeprecationWarning):
+        m = _matrixify(csr_matrix([[1, 2], [3, 4]]))
     assert m[3] == 4
     assert list(m) == [1, 2, 3, 4]
 
@@ -3724,7 +3794,7 @@ def test_func():
 def test_issue_19809():
 
     def f():
-        assert _dotprodsimp_state.state == None
+        assert _dotprodsimp_state.state is None
         m = Matrix([[1]])
         m = m * m
         return True
@@ -3740,3 +3810,8 @@ def test_issue_23276():
     assert integrate(M, (x, 0, 1), (y, 0, 1)) == Matrix([
         [S.Half],
         [S.Half]])
+
+
+def test_issue_27225():
+    # https://github.com/sympy/sympy/issues/27225
+    raises(TypeError, lambda : floor(Matrix([1, 1, 0])))

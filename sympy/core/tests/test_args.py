@@ -3,9 +3,13 @@
 # NOTE: keep tests sorted by (module, class name) key. If a class can't
 # be instantiated, add it here anyway with @SKIP("abstract class) (see
 # e.g. Function).
+from __future__ import annotations
 
 import os
 import re
+from pathlib import Path
+
+import pytest
 
 from sympy.assumptions.ask import Q
 from sympy.core.basic import Basic
@@ -18,9 +22,9 @@ from sympy.functions.elementary.exponential import (exp, log)
 from sympy.functions.elementary.miscellaneous import sqrt
 from sympy.functions.elementary.trigonometric import sin
 
-from sympy.testing.pytest import SKIP
+from sympy.testing.pytest import SKIP, warns_deprecated_sympy
 
-a, b, c, x, y, z = symbols('a,b,c,x,y,z')
+a, b, c, x, y, z, s = symbols('a,b,c,x,y,z,s')
 
 
 whitelist = [
@@ -28,6 +32,9 @@ whitelist = [
      "sympy.assumptions.relation.equality",    # tested by test_predicates()
 ]
 
+@pytest.mark.thread_unsafe(
+    reason="performs a package-wide import scan that cannot run concurrently"
+)
 def test_all_classes_are_tested():
     this = os.path.split(__file__)[0]
     path = os.path.join(this, os.pardir, os.pardir)
@@ -47,8 +54,7 @@ def test_all_classes_are_tested():
             if not file.endswith(".py"):
                 continue
 
-            with open(os.path.join(root, file), encoding='utf-8') as f:
-                text = f.read()
+            text = Path(os.path.join(root, file)).read_text(encoding='utf-8')
 
             submodule = module + '.' + file[:-3]
 
@@ -340,6 +346,14 @@ def test_sympy__codegen__ast__FunctionCall():
     assert _test_args(FunctionCall('pwer', [x]))
 
 
+def test_sympy__codegen__ast__KeywordFunctionCall():
+    from sympy.codegen.ast import KeywordFunctionCall, String
+    from sympy.core.containers import Tuple
+    from sympy.core.symbol import Symbol
+    obj = KeywordFunctionCall(String('reshape'), Tuple(Symbol('x'), Symbol('y')), {'order': Symbol('z')})
+    assert _test_args(obj)
+
+
 def test_sympy__codegen__ast__Element():
     from sympy.codegen.ast import Element
     assert _test_args(Element('x', range(3)))
@@ -490,6 +504,26 @@ def test_sympy__codegen__numpy_nodes__logaddexp():
 def test_sympy__codegen__numpy_nodes__logaddexp2():
     from sympy.codegen.numpy_nodes import logaddexp2
     assert _test_args(logaddexp2(x, y))
+
+
+def test_sympy__codegen__numpy_nodes__amin():
+    from sympy.codegen.numpy_nodes import amin
+    assert _test_args(amin(x))
+
+
+def test_sympy__codegen__numpy_nodes__amax():
+    from sympy.codegen.numpy_nodes import amax
+    assert _test_args(amax(x))
+
+
+def test_sympy__codegen__numpy_nodes__minimum():
+    from sympy.codegen.numpy_nodes import minimum
+    assert _test_args(minimum(x, y, z))
+
+
+def test_sympy__codegen__numpy_nodes__maximum():
+    from sympy.codegen.numpy_nodes import maximum
+    assert _test_args(maximum(x, y, z))
 
 
 def test_sympy__codegen__pynodes__List():
@@ -653,6 +687,11 @@ def test_sympy__core__function__Application():
 def test_sympy__core__function__AppliedUndef():
     from sympy.core.function import AppliedUndef
     assert _test_args(AppliedUndef(1, 2, 3))
+
+
+def test_sympy__core__function__DefinedFunction():
+    from sympy.core.function import DefinedFunction
+    assert _test_args(DefinedFunction(1, 2, 3))
 
 
 def test_sympy__core__function__Derivative():
@@ -3228,6 +3267,11 @@ def test_sympy__matrices__expressions__special__ZeroMatrix():
     assert _test_args(ZeroMatrix(3, 5))
 
 
+def test_sympy__matrices__expressions__special__MatrixUnit():
+    from sympy.matrices.expressions.special import MatrixUnit
+    assert _test_args(MatrixUnit(8, 9, 3, 5))
+
+
 def test_sympy__matrices__expressions__special__GenericZeroMatrix():
     from sympy.matrices.expressions.special import GenericZeroMatrix
     assert _test_args(GenericZeroMatrix())
@@ -3749,8 +3793,9 @@ def test_sympy__physics__quantum__operator__HermitianOperator():
 
 
 def test_sympy__physics__quantum__operator__IdentityOperator():
-    from sympy.physics.quantum.operator import IdentityOperator
-    assert _test_args(IdentityOperator(5))
+    with warns_deprecated_sympy():
+        from sympy.physics.quantum.operator import IdentityOperator
+        assert _test_args(IdentityOperator(5))
 
 
 def test_sympy__physics__quantum__operator__Operator():
@@ -4320,10 +4365,35 @@ def test_sympy__physics__control__lti__MIMOLinearTimeInvariant():
     # Direct instances of MIMOLinearTimeInvariant class are not allowed.
     pass
 
+@SKIP("abstract class")
+def test_sympy__physics__control__lti__TransferFunctionBase():
+    # Direct instances of TransferFunctionBase class are not allowed.
+    pass
+
 
 def test_sympy__physics__control__lti__TransferFunction():
     from sympy.physics.control.lti import TransferFunction
     assert _test_args(TransferFunction(2, 3, x))
+
+
+def test_sympy__physics__control__lti__DiscreteTransferFunction():
+    from sympy.physics.control.lti import DiscreteTransferFunction
+    assert _test_args(DiscreteTransferFunction(2, 3, x, 0.1))
+
+
+def _test_args_PIDController(obj):
+    from sympy.physics.control.lti import PIDController
+    if isinstance(obj, PIDController):
+        kp, ki, kd, tf = obj.kp, obj.ki, obj.kd, obj.tf
+        recreated_pid = PIDController(kp, ki, kd, tf, s)
+        return recreated_pid == obj
+    return False
+
+
+def test_sympy__physics__control__lti__PIDController():
+    from sympy.physics.control.lti import PIDController
+    kp, ki, kd, tf = 1, 0.1, 0.01, 0
+    assert _test_args_PIDController(PIDController(kp, ki, kd, tf, s))
 
 
 def test_sympy__physics__control__lti__Series():
@@ -4383,6 +4453,11 @@ def test_sympy__physics__control__lti__TransferFunctionMatrix():
     tf2 = TransferFunction(y - x, z + y, x)
     assert _test_args(TransferFunctionMatrix([[tf1, tf2]]))
 
+@SKIP("abstract class")
+def test_sympy__physics__control__lti__StateSpaceBase():
+    # Direct instances of StateSpaceBase class are not allowed.
+    pass
+
 
 def test_sympy__physics__control__lti__StateSpace():
     from sympy.matrices.dense import Matrix
@@ -4392,6 +4467,16 @@ def test_sympy__physics__control__lti__StateSpace():
     C = Matrix([[1, 2]])
     D = Matrix([0])
     assert _test_args(StateSpace(A, B, C, D))
+
+
+def test_sympy__physics__control__lti__DiscreteStateSpace():
+    from sympy.matrices.dense import Matrix
+    from sympy.physics.control import DiscreteStateSpace
+    A = Matrix([[-5, -1], [3, -1]])
+    B = Matrix([2, 5])
+    C = Matrix([[1, 2]])
+    D = Matrix([0])
+    assert _test_args(DiscreteStateSpace(A, B, C, D, 0.1))
 
 
 def test_sympy__physics__units__dimensions__Dimension():
@@ -5103,6 +5188,12 @@ def test_sympy__tensor__array__expressions__array_expressions__Reshape():
     assert _test_args(Reshape(A, (2, 2)))
 
 
+def test_sympy__tensor__array__expressions__array_expressions__ArraySum():
+    from sympy.tensor.array.expressions.array_expressions import ArraySum, ArraySymbol
+    A = ArraySymbol("A", (3, 3))
+    assert _test_args(ArraySum(A*sin(a), (a, 1, b)))
+
+
 def test_sympy__codegen__ast__Assignment():
     from sympy.codegen.ast import Assignment
     assert _test_args(Assignment(x, y))
@@ -5154,6 +5245,11 @@ def test_sympy__codegen__cfunctions__hypot():
 def test_sympy__codegen__cfunctions__isnan():
     from sympy.codegen.cfunctions import isnan
     assert _test_args(isnan(x))
+
+
+def test_sympy__codegen__cfunctions__isinf():
+    from sympy.codegen.cfunctions import isinf
+    assert _test_args(isinf(x))
 
 
 def test_sympy__codegen__fnodes__FFunction():
@@ -5212,6 +5308,22 @@ def test_sympy__codegen__matrix_nodes__MatrixSolve():
     A = MatrixSymbol('A', 3, 3)
     v = MatrixSymbol('x', 3, 1)
     assert _test_args(MatrixSolve(A, v))
+
+
+def test_sympy__printing__rust__TypeCast():
+    from sympy.printing.rust import TypeCast
+    from sympy.codegen.ast import real
+    assert _test_args(TypeCast(x, real))
+
+
+def test_sympy__printing__rust__float_floor():
+    from sympy.printing.rust import float_floor
+    assert _test_args(float_floor(x))
+
+
+def test_sympy__printing__rust__float_ceiling():
+    from sympy.printing.rust import float_ceiling
+    assert _test_args(float_ceiling(x))
 
 
 def test_sympy__vector__coordsysrect__CoordSys3D():
