@@ -63,7 +63,11 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           config: |
-            threat-models: [remote, local]
+            paths-ignore:
+              # 687 of this repo's 1602 Python files (43%) are test files
+              # (sympy/**/tests/test_*.py); excluding them is a straight
+              # analysis-time win with no loss of application-code coverage.
+              - '**/tests/**'
             query-filters:
               # py/weak-crypto-key's evaluation never completes on this
               # codebase's size within the job timeout, stalling the whole
@@ -75,6 +79,10 @@ jobs:
               # query itself hangs rather than overflowing the result set.
               - exclude:
                   id: py/polynomial-redos
+          # threat-models intentionally left at CodeQL's default (remote only):
+          # broadening to [remote, local] pushed total analysis time for this
+          # repo's size over the 360-minute job timeout even with the two
+          # never-completing queries above already excluded.
           # If you wish to specify custom queries, you can do so here or in a config file.
           # By default, queries listed here will override any specified in a config file.
           # Prefix the list here with "+" to use these queries and those in the config file.
