@@ -69,64 +69,15 @@ jobs:
               # analysis-time win with no loss of application-code coverage.
               - '**/tests/**'
             query-filters:
-              # py/weak-crypto-key's evaluation never completes on this
-              # codebase's size within the job timeout, stalling the whole
+              # py/polynomial-redos produces a result set over the 2GiB SARIF
+              # upload limit on this repo's codebase size, failing the whole
               # analysis job; every other query still runs normally.
               - exclude:
-                  id: py/weak-crypto-key
-              # py/polynomial-redos also never completes here -- same class
-              # of issue as litellm's SARIF-limit case, but this time the
-              # query itself hangs rather than overflowing the result set.
-              - exclude:
                   id: py/polynomial-redos
-              # Full source-to-sink taint-tracking queries (the most
-              # expensive CodeQL query class) never completed even after
-              # excluding the two queries above and reverting threat-models:
-              # 35 of 43 queries started but none finished within the job
-              # timeout, evaluated concurrently across only 4 threads, so a
-              # handful of these were almost certainly starving the rest.
-              # sympy is a symbolic-math library with no web-facing
-              # component, so the web-app-oriented taint sinks these target
-              # (SQL/command/LDAP/XPath/template/header injection, XSS,
-              # SSRF, NoSQL injection, unsafe deserialization, XXE, open
-              # redirect, ReDoS/RegexInjection) are also not meaningfully
-              # applicable to this project's actual attack surface.
-              - exclude:
-                  id: py/sql-injection
-              - exclude:
-                  id: py/command-line-injection
-              - exclude:
-                  id: py/path-injection
-              - exclude:
-                  id: py/code-injection
-              - exclude:
-                  id: py/reflected-xss
-              - exclude:
-                  id: py/ldap-injection
-              - exclude:
-                  id: py/xpath-injection
-              - exclude:
-                  id: py/template-injection
-              - exclude:
-                  id: py/header-injection
-              - exclude:
-                  id: py/unsafe-deserialization
-              - exclude:
-                  id: py/full-ssrf
-              - exclude:
-                  id: py/nosql-injection
-              - exclude:
-                  id: py/redos
-              - exclude:
-                  id: py/regex-injection
-              - exclude:
-                  id: py/xxe
-              - exclude:
-                  id: py/url-redirection
           # threat-models intentionally left at CodeQL's default (remote only):
           # broadening to [remote, local] pushed total analysis time for this
-          # repo's size over the 360-minute job timeout even with the two
-          # never-completing queries above already excluded.
+          # repo's size over the 360-minute job timeout even with the
+          # never-completing query above already excluded.
           # If you wish to specify custom queries, you can do so here or in a config file.
           # By default, queries listed here will override any specified in a config file.
           # Prefix the list here with "+" to use these queries and those in the config file.
